@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AI News Curator Lite Day 4 serverless backend
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref AiNewsCuratorLiteTable
+
+Resources:
+  AiNewsCuratorLiteApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: dev
+
+  AiNewsCuratorLiteTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ai_news_curator_lite_table
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  AiNewsCuratorLiteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/
+      Handler: app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AiNewsCuratorLiteTable
+      Events:
+        HealthApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AiNewsCuratorLiteApi
+            Path: /health
+            Method: GET
+        NewsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AiNewsCuratorLiteApi
+            Path: /news
+            Method: GET
+        CreateKeywordApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AiNewsCuratorLiteApi
+            Path: /keywords
+            Method: POST
+        ListKeywordsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AiNewsCuratorLiteApi
+            Path: /keywords
+            Method: GET
+
+Outputs:
+  ApiEndpoint:
+    Description: HTTP API endpoint
+    Value: !Sub 'https://${AiNewsCuratorLiteApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
+  TableName:
+    Description: DynamoDB table name
+    Value: !Ref AiNewsCuratorLiteTable

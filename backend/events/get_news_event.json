@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /news",
+  "rawPath": "/news",
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/news"
+    }
+  },
+  "queryStringParameters": {
+    "keyword": "aws"
+  },
+  "body": null
+}

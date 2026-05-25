@@ -1,0 +1,13 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /keywords",
+  "rawPath": "/keywords",
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/keywords"
+    }
+  },
+  "queryStringParameters": null,
+  "body": null
+}

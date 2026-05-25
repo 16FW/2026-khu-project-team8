@@ -70,3 +70,14 @@ GA4 or Custom Event API
 Admin Input:
 Admin API or JSON bulk upload
 ```
+
+## Day 4 Local Run
+
+Lambda runtime은 `python3.12`입니다. 로컬에 Python 3.12가 없으면 Docker Desktop을 실행한 상태에서 빌드합니다.
+
+```bash
+cd infra
+sam build
+sam local invoke AiNewsCuratorLiteFunction --event ../backend/events/health_event.json
+sam local invoke AiNewsCuratorLiteFunction --event ../backend/events/get_news_event.json
+```
