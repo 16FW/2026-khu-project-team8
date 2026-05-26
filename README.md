@@ -21,6 +21,7 @@ The AWS CloudFormation stack name uses hyphens because stack names cannot contai
 
 - Health check API
 - Keyword create/list/delete API backed by DynamoDB
+- Today news card API based on saved keywords
 - Mock news lookup API for early MVP testing
 - SAM-based local build and AWS deployment flow
 - CloudWatch-compatible Lambda logging
@@ -95,6 +96,8 @@ sam deploy
 ```bash
 curl https://{api_id}.execute-api.{region}.amazonaws.com/Prod/health
 curl https://{api_id}.execute-api.{region}.amazonaws.com/Prod/keywords
+curl https://{api_id}.execute-api.{region}.amazonaws.com/Prod/news/today
 ```
 
 See [docs/day6_dynamodb.md](docs/day6_dynamodb.md) for DynamoDB integration details and full test commands.
+See [docs/day7_news_api.md](docs/day7_news_api.md) for the today news API design and test commands.

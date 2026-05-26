@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /news/today",
+  "rawPath": "/news/today",
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/news/today"
+    }
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "body": null,
+  "isBase64Encoded": false
+}

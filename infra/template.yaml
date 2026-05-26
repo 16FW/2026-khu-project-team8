@@ -10,6 +10,7 @@ Globals:
     Environment:
       Variables:
         KEYWORD_TABLE_NAME: !Ref KeywordTable
+        NEWS_TABLE_NAME: !Ref NewsTable
 
 Resources:
   AiNewsCuratorLiteApi:
@@ -32,6 +33,21 @@ Resources:
         - AttributeName: keyword
           KeyType: RANGE
 
+  NewsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: keyword
+          AttributeType: S
+        - AttributeName: published_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: keyword
+          KeyType: HASH
+        - AttributeName: published_at
+          KeyType: RANGE
+
   AiNewsCuratorLiteFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -47,6 +63,10 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:DeleteItem
               Resource: !GetAtt KeywordTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt NewsTable.Arn
       Events:
         HealthApi:
           Type: HttpApi
@@ -59,6 +79,12 @@ Resources:
           Properties:
             ApiId: !Ref AiNewsCuratorLiteApi
             Path: /news
+            Method: GET
+        TodayNewsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AiNewsCuratorLiteApi
+            Path: /news/today
             Method: GET
         CreateKeywordApi:
           Type: HttpApi
@@ -86,3 +112,6 @@ Outputs:
   KeywordTableName:
     Description: DynamoDB table name
     Value: !Ref KeywordTable
+  NewsTableName:
+    Description: DynamoDB news table name
+    Value: !Ref NewsTable

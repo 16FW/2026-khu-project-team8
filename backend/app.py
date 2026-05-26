@@ -9,10 +9,48 @@ from boto3.dynamodb.conditions import Key
 SERVICE_NAME = "ai_news_curator_lite"
 # TODO: Replace the MVP demo user with a JWT/Cognito user id after auth is added.
 USER_ID = "demo_user"
-TABLE_NAME = os.environ.get("KEYWORD_TABLE_NAME")
+KEYWORD_TABLE_NAME = os.environ.get("KEYWORD_TABLE_NAME")
+NEWS_TABLE_NAME = os.environ.get("NEWS_TABLE_NAME")
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(TABLE_NAME) if TABLE_NAME else None
+keyword_table = dynamodb.Table(KEYWORD_TABLE_NAME) if KEYWORD_TABLE_NAME else None
+news_table = dynamodb.Table(NEWS_TABLE_NAME) if NEWS_TABLE_NAME else None
+
+SEED_NEWS_BY_KEYWORD = {
+    "ai": [
+        {
+            "keyword": "ai",
+            "published_at": "2026-05-26T00:00:00Z",
+            "title": "AI infrastructure shifts toward smaller production models",
+            "summary": "Teams are focusing on reliable smaller models, cost controls, and monitoring before expanding AI features.",
+            "source": "seed",
+            "url": "https://example.com/news/ai-infrastructure",
+            "image_url": "https://example.com/images/ai-infrastructure.png"
+        }
+    ],
+    "aws": [
+        {
+            "keyword": "aws",
+            "published_at": "2026-05-26T00:00:00Z",
+            "title": "Serverless teams refine Lambda and DynamoDB cost practices",
+            "summary": "PAY_PER_REQUEST tables and lean Lambda handlers remain a practical baseline for early MVP backends.",
+            "source": "seed",
+            "url": "https://example.com/news/serverless-cost",
+            "image_url": "https://example.com/images/serverless-cost.png"
+        }
+    ],
+    "cloud": [
+        {
+            "keyword": "cloud",
+            "published_at": "2026-05-26T00:00:00Z",
+            "title": "Cloud backend MVPs favor managed services for faster delivery",
+            "summary": "API Gateway, Lambda, and DynamoDB provide a small operational surface for portfolio-scale systems.",
+            "source": "seed",
+            "url": "https://example.com/news/cloud-mvp",
+            "image_url": "https://example.com/images/cloud-mvp.png"
+        }
+    ]
+}
 
 
 def response(status_code, body):
@@ -83,7 +121,7 @@ def handle_get_news(event):
 
 
 def handle_create_keyword(event):
-    if table is None:
+    if keyword_table is None:
         return error_response(500, "keyword_table_not_configured")
 
     body = parse_body(event)
@@ -101,7 +139,7 @@ def handle_create_keyword(event):
     }
 
     print(f"Creating keyword item: {item}")
-    table.put_item(Item=item)
+    keyword_table.put_item(Item=item)
 
     return response(201, {
         "message": "keyword created",
@@ -110,12 +148,12 @@ def handle_create_keyword(event):
 
 
 def handle_get_keywords():
-    if table is None:
+    if keyword_table is None:
         return error_response(500, "keyword_table_not_configured")
 
     print(f"Querying keywords for user_id={USER_ID}")
 
-    result = table.query(
+    result = keyword_table.query(
         KeyConditionExpression=Key("user_id").eq(USER_ID)
     )
 
@@ -132,7 +170,7 @@ def handle_get_keywords():
 
 
 def handle_delete_keyword(event):
-    if table is None:
+    if keyword_table is None:
         return error_response(500, "keyword_table_not_configured")
 
     path_parameters = event.get("pathParameters") or {}
@@ -146,7 +184,7 @@ def handle_delete_keyword(event):
         return error_response(400, "keyword_required")
 
     print(f"Deleting keyword={keyword} for user_id={USER_ID}")
-    table.delete_item(
+    keyword_table.delete_item(
         Key={
             "user_id": USER_ID,
             "keyword": keyword
@@ -159,6 +197,78 @@ def handle_delete_keyword(event):
     })
 
 
+def get_user_keywords():
+    if keyword_table is None:
+        raise RuntimeError("keyword_table_not_configured")
+
+    result = keyword_table.query(
+        KeyConditionExpression=Key("user_id").eq(USER_ID)
+    )
+
+    return [
+        item.get("keyword")
+        for item in result.get("Items", [])
+        if item.get("keyword")
+    ]
+
+
+def normalize_news_item(item):
+    return {
+        "keyword": item.get("keyword"),
+        "title": item.get("title"),
+        "summary": item.get("summary"),
+        "source": item.get("source"),
+        "url": item.get("url"),
+        "image_url": item.get("image_url"),
+        "published_at": item.get("published_at")
+    }
+
+
+def query_news_for_keyword(keyword):
+    if news_table is None:
+        return []
+
+    result = news_table.query(
+        KeyConditionExpression=Key("keyword").eq(keyword),
+        ScanIndexForward=False,
+        Limit=5
+    )
+
+    return [
+        normalize_news_item(item)
+        for item in result.get("Items", [])
+    ]
+
+
+def seed_news_for_keyword(keyword):
+    return [
+        normalize_news_item(item)
+        for item in SEED_NEWS_BY_KEYWORD.get(keyword, [])
+    ]
+
+
+def handle_get_today_news():
+    if keyword_table is None:
+        return error_response(500, "keyword_table_not_configured")
+
+    keywords = get_user_keywords()
+    items = []
+
+    for keyword in keywords:
+        keyword_news = query_news_for_keyword(keyword)
+        if not keyword_news:
+            keyword_news = seed_news_for_keyword(keyword)
+        items.extend(keyword_news)
+
+    items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
+
+    return response(200, {
+        "user_id": USER_ID,
+        "keywords": keywords,
+        "items": items
+    })
+
+
 def lambda_handler(event, context):
     print("Received event:", json.dumps(event, ensure_ascii=False))
 
@@ -168,6 +278,8 @@ def lambda_handler(event, context):
 
         if route == "GET /health":
             return handle_health()
+        if route == "GET /news/today":
+            return handle_get_today_news()
         if route == "GET /news":
             return handle_get_news(event)
         if route == "POST /keywords":
