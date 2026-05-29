@@ -1,10 +1,14 @@
 import json
+import logging
 import os
 from datetime import datetime, timezone
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 SERVICE_NAME = "ai_news_curator_lite"
 # TODO: Replace the MVP demo user with a JWT/Cognito user id after auth is added.
@@ -114,6 +118,67 @@ def parse_body(event):
         return None
 
 
+def get_method_and_path(event):
+    request_context = event.get("requestContext", {})
+    http_context = request_context.get("http", {})
+    method = http_context.get("method") or event.get("httpMethod") or ""
+    path = http_context.get("path") or event.get("rawPath") or event.get("path") or ""
+    return method.upper(), path
+
+
+def get_request_id(event, context):
+    request_context = event.get("requestContext", {})
+    request_id = request_context.get("requestId")
+    if request_id:
+        return request_id
+    if context is not None:
+        return getattr(context, "aws_request_id", None)
+    return None
+
+
+def get_error_code(lambda_response):
+    try:
+        body = json.loads(lambda_response.get("body") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+    error = body.get("error") or {}
+    return error.get("code") or body.get("message")
+
+
+def log_request_received(method, path, request_id):
+    logger.info(
+        "request_received method=%s path=%s request_id=%s",
+        method,
+        path,
+        request_id or "-"
+    )
+
+
+def log_response_sent(method, path, request_id, lambda_response):
+    status_code = lambda_response.get("statusCode")
+    error_code = get_error_code(lambda_response)
+    logger.info(
+        "response_sent method=%s path=%s status_code=%s request_id=%s message=%s",
+        method,
+        path,
+        status_code,
+        request_id or "-",
+        error_code or "ok"
+    )
+
+    if status_code and status_code >= 400:
+        log_level = logger.error if status_code >= 500 else logger.warning
+        log_level(
+            "request_failed method=%s path=%s status_code=%s request_id=%s error=%s",
+            method,
+            path,
+            status_code,
+            request_id or "-",
+            error_code or "unknown_error"
+        )
+
+
 def validate_keyword(value, field_name="keyword"):
     if not isinstance(value, str):
         return None, f"{field_name}_must_be_string"
@@ -159,7 +224,7 @@ def handle_get_news(event):
     if validation_error:
         return error_response(400, validation_error)
 
-    print(f"Returning mock news for keyword={keyword}")
+    logger.info("news_mock_returned keyword=%s", keyword)
     return response(200, {
         "keyword": keyword,
         "items": [
@@ -194,7 +259,7 @@ def handle_create_keyword(event):
         "created_at": now_iso()
     }
 
-    print(f"Creating keyword item: {item}")
+    logger.info("keyword_create_requested user_id=%s keyword=%s", USER_ID, keyword)
     keyword_table.put_item(Item=item)
 
     return response(201, {
@@ -206,7 +271,7 @@ def handle_get_keywords():
     if keyword_table is None:
         return error_response(500, "keyword_table_not_configured")
 
-    print(f"Querying keywords for user_id={USER_ID}")
+    logger.info("keywords_query_requested user_id=%s", USER_ID)
 
     result = keyword_table.query(
         KeyConditionExpression=Key("user_id").eq(USER_ID)
@@ -239,7 +304,7 @@ def handle_delete_keyword(event):
     if validation_error:
         return error_response(400, validation_error)
 
-    print(f"Deleting keyword={keyword} for user_id={USER_ID}")
+    logger.info("keyword_delete_requested user_id=%s keyword=%s", USER_ID, keyword)
     keyword_table.delete_item(
         Key={
             "user_id": USER_ID,
@@ -325,28 +390,44 @@ def handle_get_today_news():
 
 
 def lambda_handler(event, context):
-    print("Received event:", json.dumps(event, ensure_ascii=False))
+    method, path = get_method_and_path(event)
+    request_id = get_request_id(event, context)
+    log_request_received(method, path, request_id)
 
     try:
         route = get_route(event)
-        print(f"Resolved route: {route}")
+        logger.info("route_resolved method=%s path=%s route=%s request_id=%s", method, path, route, request_id or "-")
 
         if route.startswith("OPTIONS "):
-            return cors_preflight_response()
+            lambda_response = cors_preflight_response()
+            log_response_sent(method, path, request_id, lambda_response)
+            return lambda_response
         if route == "GET /health":
-            return handle_health()
-        if route == "GET /news/today":
-            return handle_get_today_news()
-        if route == "GET /news":
-            return handle_get_news(event)
-        if route == "POST /keywords":
-            return handle_create_keyword(event)
-        if route == "GET /keywords":
-            return handle_get_keywords()
-        if route == "DELETE /keywords/{keyword}" or route.startswith("DELETE /keywords/"):
-            return handle_delete_keyword(event)
+            lambda_response = handle_health()
+        elif route == "GET /news/today":
+            lambda_response = handle_get_today_news()
+        elif route == "GET /news":
+            lambda_response = handle_get_news(event)
+        elif route == "POST /keywords":
+            lambda_response = handle_create_keyword(event)
+        elif route == "GET /keywords":
+            lambda_response = handle_get_keywords()
+        elif route == "DELETE /keywords/{keyword}" or route.startswith("DELETE /keywords/"):
+            lambda_response = handle_delete_keyword(event)
+        else:
+            lambda_response = error_response(404, "not_found")
 
-        return error_response(404, "not_found")
+        log_response_sent(method, path, request_id, lambda_response)
+        return lambda_response
     except Exception as exc:
-        print(f"Unhandled error: {exc}")
-        return error_response(500, "internal_server_error")
+        logger.exception(
+            "request_failed method=%s path=%s request_id=%s error=%s message=%s",
+            method,
+            path,
+            request_id or "-",
+            type(exc).__name__,
+            str(exc)
+        )
+        lambda_response = error_response(500, "internal_server_error")
+        log_response_sent(method, path, request_id, lambda_response)
+        return lambda_response
