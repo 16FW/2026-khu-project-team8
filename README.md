@@ -99,6 +99,51 @@ sam deploy
 
 스크립트는 상태 확인, 키워드 등록과 조회, 뉴스 조회, 키워드 삭제 흐름을 순서대로 검증합니다.
 
+## Performance Testing
+
+서비스의 기본적인 트래픽 처리 흐름을 확인하기 위해 k6 기반 성능 테스트를 진행했습니다. 상세 로그 대신 테스트 목적, 조건, 결과만 정리합니다.
+
+### Basic Load Test
+
+| 항목 | 내용 |
+| --- | --- |
+| 목적 | 일반적인 서비스 사용 상황 검증 |
+| 조건 | 동시 사용자 50명, 5분 지속 |
+| 결과 | 평균 응답시간 목표 충족, 오류율 목표 충족 |
+
+### Spike Test
+
+| 항목 | 내용 |
+| --- | --- |
+| 목적 | 갑작스러운 트래픽 증가 대응 확인 |
+| 조건 | 짧은 시간 내 사용자 급증 |
+| 결과 | API Gateway, Lambda 기반 서버리스 구조에서 정상 처리 |
+
+Spike Test를 통해 AWS 계정의 Lambda 동시 실행 제한(Concurrent Executions)을 확인했습니다. 실제 서비스 운영 시 트래픽 증가에 따라 증설 요청을 고려할 수 있습니다.
+
+### Morning Ramp-up Scenario
+
+| 항목 | 내용 |
+| --- | --- |
+| 목적 | 출근 시간대 사용자 증가 패턴 시뮬레이션 |
+| 조건 | 사용자가 점진적으로 증가, 최대 50 VU |
+| 결과 | 급격한 오류 발생 없음, 응답시간 안정적으로 유지 |
+
+### Test Summary
+
+| Test | Goal | Result |
+| --- | --- | --- |
+| Basic Load Test | Normal traffic | Passed |
+| Spike Test | Sudden traffic increase | Passed |
+| Morning Ramp-up | Gradual increase | Passed |
+
+운영 관점에서 얻은 점:
+
+- 서버리스 아키텍처의 자동 확장 특성을 확인했습니다.
+- Lambda 동시 실행 제한을 운영 시 고려해야 합니다.
+- 일반적인 트래픽 환경에서 안정적인 응답을 확인했습니다.
+- 향후 CloudWatch 기반 모니터링을 고도화할 수 있습니다.
+
 ## 운영 및 비용 고려사항
 
 - DynamoDB 테이블은 `PAY_PER_REQUEST` 모드를 사용합니다.
