@@ -125,4 +125,4 @@ sam deploy
 - CloudWatch 알람과 로그 보관 기간 설정
 - 정적 프론트엔드 연결
 
-발표용 요약은 [포트폴리오 문서](docs/portfolio.md)를 참고하세요.
+요약은 [포트폴리오 문서](docs/portfolio.md)를 참고하세요.

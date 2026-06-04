@@ -6,7 +6,7 @@ Globals:
   Function:
     Runtime: python3.12
     Timeout: 10
-    MemorySize: 128
+    MemorySize: 512
     Environment:
       Variables:
         KEYWORD_TABLE_NAME: !Ref KeywordTable
