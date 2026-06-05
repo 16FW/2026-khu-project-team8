@@ -51,12 +51,6 @@ Operations
 
 ## 로컬 실행 방법
 
-저장소 루트에서 Python 문법을 확인합니다.
-
-```powershell
-python -m py_compile backend/app.py
-```
-
 `infra` 디렉터리에서 SAM 템플릿을 검증하고 빌드합니다.
 
 ```powershell
